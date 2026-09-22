@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kontrol Paneli</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+  :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  *{box-sizing:inherit}
+  body{margin:0;background:#20161a;color:#f4e6e6;font-family:"Segoe UI",Roboto,Arial,sans-serif;padding:16px 14px 40px}
+  h1{font-size:18px;margin:4px 0 14px}
+  .tabs{display:flex;gap:6px;margin-bottom:12px}
+  .tab{flex:1;padding:9px;border:1px solid #3e2c33;background:#2b1e23;color:#bfa0a4;
+       border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;text-align:center}
+  .tab.on{background:#3b232d;color:#f4e6e6;border-color:#f08cae}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#2b1e23;
+       border:1px solid #3e2c33;border-radius:10px;padding:10px 12px;margin-bottom:6px;font-size:13px}
+  .row.today{border-color:#f08cae}
+  .dev{color:#f08cae;font-weight:600;flex:1;min-width:0}
+  .dev input{background:transparent;border:none;color:#f08cae;font-weight:600;font-size:13px;
+             width:100%;padding:2px 0;border-bottom:1px dashed transparent}
+  .dev input:focus{outline:none;border-bottom-color:#f08cae}
+  .islem{font-size:11px;padding:2px 8px;border-radius:20px;white-space:nowrap}
+  .islem.on{background:#1d2f26;color:#4ec287}
+  .islem.off{background:#3b232d;color:#e59b7f}
+  .time{color:#bfa0a4;font-size:12px;white-space:nowrap}
+  .empty{color:#bfa0a4;text-align:center;padding:30px 10px;font-size:14px}
+  .note{color:#bfa0a4;font-size:12px;margin-top:20px}
+  .sec{display:none}
+  .sec.on{display:block;animation:secGir .28s ease}
+  @keyframes secGir{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .tab{transition:background .2s ease,color .2s ease,border-color .2s ease}
+  .silBtn{border:none;background:#3b232d;color:#e59b7f;font-size:11px;font-weight:600;
+          padding:5px 10px;border-radius:20px;cursor:pointer;white-space:nowrap}
+  .sohbetImg{display:block;max-width:140px;max-height:140px;border-radius:8px;margin-top:6px;object-fit:cover}
+  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .selAll{display:flex;align-items:center;gap:6px;font-size:12px;color:#bfa0a4;cursor:pointer}
+  .selAll input{width:17px;height:17px;accent-color:#f08cae}
+  .toolbar .spacer{flex:1}
+  .bulkBtn{border:none;background:#3b232d;color:#e59b7f;font-size:12px;font-weight:600;
+           padding:7px 12px;border-radius:20px;cursor:pointer;white-space:nowrap}
+  .bulkBtn:disabled{opacity:.4;cursor:default}
+  .allBtn{border:1px solid #3e2c33;background:transparent;color:#bfa0a4;font-size:12px;font-weight:600;
+          padding:7px 12px;border-radius:20px;cursor:pointer;white-space:nowrap}
+  .row input[type=checkbox]{width:18px;height:18px;flex:none;accent-color:#f08cae;margin-right:2px}
+</style>
+</head>
+<body>
+<h1>📋 Kontrol Paneli</h1>
+<div class="tabs">
+  <button class="tab on" data-s="girisler">Girişler</button>
+  <button class="tab" data-s="degisiklikler">Değişiklikler</button>
+  <button class="tab" data-s="sohbet">Sohbet</button>
+</div>
+
+<div id="girisler" class="sec on">
+  <div class="toolbar">
+    <label class="selAll"><input type="checkbox" id="girSelAll"> Tümünü seç</label>
+    <div class="spacer"></div>
+    <button class="bulkBtn" id="girBulkSil" disabled>Seçilenleri Sil</button>
+    <button class="allBtn" id="girTumSil">Tümünü Sil</button>
+  </div>
+  <div id="girislerListe"><div class="empty">Yükleniyor…</div></div>
+</div>
+<div id="degisiklikler" class="sec">
+  <div class="toolbar">
+    <label class="selAll"><input type="checkbox" id="degSelAll"> Tümünü seç</label>
+    <div class="spacer"></div>
+    <button class="bulkBtn" id="degBulkSil" disabled>Seçilenleri Sil</button>
+    <button class="allBtn" id="degTumSil">Tümünü Sil</button>
+  </div>
+  <div id="degisikliklerListe"><div class="empty">Yükleniyor…</div></div>
+</div>
+<div id="sohbet" class="sec"><div class="empty">Yükleniyor…</div></div>
+
+<div class="note">Bu sayfanın linkini Feyzanur'a göndermeyin — sadece siz kullanın.<br>Cihaz adının üstüne tıklayıp kendi isminizi yazabilirsiniz (örn. "Benim Telefonum").</div>
+
+<script>
+  var firebaseConfig = {
+    apiKey: "AIzaSyCF8WUjQmbWT-EuR7fn_jOJ-indB6-kRQ8",
+    databaseURL: "https://feyzanur-9b274-default-rtdb.firebaseio.com",
+    projectId: "feyzanur-9b274"
+  };
+
+  var isimler = {}; // cihaz_id -> özel isim
+  var girSecili = {};  // key -> true
+  var degSecili = {};  // key -> true
+
+  function bugunMu(tarihSaat){
+    var d=new Date(); function p(n){return n<10?"0"+n:""+n;}
+    var bugun = p(d.getDate())+"."+p(d.getMonth()+1)+"."+d.getFullYear();
+    return (tarihSaat||"").indexOf(bugun) === 0;
+  }
+  function etiket(cihazId){
+    return isimler[cihazId] || cihazId;
+  }
+  function isimInput(cihazId){
+    var val = (isimler[cihazId] || "").replace(/"/g,"&quot;");
+    return '<input type="text" value="'+val+'" placeholder="'+cihazId+'" data-cihaz="'+cihazId+'">';
+  }
+
+  /* ---- toplu seçim / silme (ortak yardımcılar) ---- */
+  function kurBulkAraclari(prefix, secili, ref, baslikTekil){
+    var yazRef = ref.ref || ref; // limitToLast() bir Query döndürür; silme için asıl Reference gerekir
+    var selAll = document.getElementById(prefix+"SelAll");
+    var bulkBtn = document.getElementById(prefix+"BulkSil");
+    var tumBtn = document.getElementById(prefix+"TumSil");
+    var container = document.getElementById(prefix==="gir" ? "girislerListe" : "degisikliklerListe");
+
+    function guncelle(){
+      var n = Object.keys(secili).length;
+      bulkBtn.disabled = n===0;
+      bulkBtn.textContent = n>0 ? ("Seçilenleri Sil ("+n+")") : "Seçilenleri Sil";
+      var kutular = container.querySelectorAll('input[type="checkbox"][data-key]');
+      var tumu = kutular.length>0 && Array.prototype.every.call(kutular, function(k){ return !!secili[k.getAttribute("data-key")]; });
+      selAll.checked = tumu;
+    }
+
+    container.addEventListener("change", function(e){
+      var cb = e.target;
+      if(cb.matches('input[type="checkbox"][data-key]')){
+        var key = cb.getAttribute("data-key");
+        if(cb.checked){ secili[key] = true; } else { delete secili[key]; }
+        guncelle();
+      }
+    });
+
+    selAll.addEventListener("change", function(){
+      var kutular = container.querySelectorAll('input[type="checkbox"][data-key]');
+      Array.prototype.forEach.call(kutular, function(k){
+        var key = k.getAttribute("data-key");
+        if(selAll.checked){ secili[key]=true; k.checked=true; } else { delete secili[key]; k.checked=false; }
+      });
+      guncelle();
+    });
+
+    function bosalt(){ Object.keys(secili).forEach(function(k){ delete secili[k]; }); }
+
+    bulkBtn.addEventListener("click", function(){
+      var keys = Object.keys(secili);
+      if(!keys.length) return;
+      if(!confirm(keys.length+" "+baslikTekil+" kaydı silinsin mi?")) return;
+      keys.forEach(function(k){ yazRef.child(k).remove(); });
+      bosalt(); guncelle();
+    });
+
+    tumBtn.addEventListener("click", function(){
+      if(!confirm("TÜM "+baslikTekil+" kayıtları silinsin mi? Bu işlem geri alınamaz.")) return;
+      yazRef.remove();
+      bosalt(); guncelle();
+    });
+
+    return guncelle;
+  }
+
+  try{
+    firebase.initializeApp(firebaseConfig);
+    var isimRef = firebase.database().ref("alisveris_listesi/cihaz_isimleri");
+    var girisRef = firebase.database().ref("alisveris_listesi/loglar").limitToLast(200);
+    var degisimRef = firebase.database().ref("alisveris_listesi/degisiklikler").limitToLast(300);
+    var sohbetRef = firebase.database().ref("alisveris_listesi/sohbet").limitToLast(300);
+
+    var girGuncelle = kurBulkAraclari("gir", girSecili, girisRef, "giriş");
+    var degGuncelle = kurBulkAraclari("deg", degSecili, degisimRef, "değişiklik");
+
+    isimRef.on("value", function(snap){
+      isimler = snap.val() || {};
+      girisRef.once("value", renderGirisler);
+      degisimRef.once("value", renderDegisiklikler);
+    });
+    girisRef.on("value", renderGirisler);
+    degisimRef.on("value", renderDegisiklikler);
+    sohbetRef.on("value", renderSohbet);
+
+    function renderGirisler(snap){
+      var kayitlar = []; snap.forEach(function(c){ var v=c.val()||{}; v._key=c.key; kayitlar.push(v); });
+      kayitlar.reverse();
+      var el = document.getElementById("girislerListe");
+      if(!kayitlar.length){ el.innerHTML='<div class="empty">Henüz giriş kaydı yok.</div>'; girGuncelle(); return; }
+      el.innerHTML = kayitlar.map(function(k){
+        var checked = girSecili[k._key] ? " checked" : "";
+        return '<div class="row'+(bugunMu(k.tarihSaat)?' today':'')+'">'
+          + '<input type="checkbox" data-key="'+k._key+'"'+checked+'>'
+          + '<span class="dev">📱 '+isimInput(k.cihaz||"bilinmeyen")+'</span>'
+          + '<span class="time">'+(k.tarihSaat||"")+'</span></div>';
+      }).join("");
+      baglaIsimAlanlari();
+      girGuncelle();
+    }
+
+    function renderDegisiklikler(snap){
+      var kayitlar = []; snap.forEach(function(c){ var v=c.val()||{}; v._key=c.key; kayitlar.push(v); });
+      kayitlar.reverse();
+      var el = document.getElementById("degisikliklerListe");
+      if(!kayitlar.length){ el.innerHTML='<div class="empty">Henüz değişiklik yok.</div>'; degGuncelle(); return; }
+      el.innerHTML = kayitlar.map(function(k){
+        var acik = k.islem === "işaretledi";
+        var checked = degSecili[k._key] ? " checked" : "";
+        return '<div class="row'+(bugunMu(k.tarihSaat)?' today':'')+'">'
+          + '<input type="checkbox" data-key="'+k._key+'"'+checked+'>'
+          + '<span class="dev">'+etiket(k.cihaz||"?")+' — '+(k.urun||"")
+          + ' <span class="islem '+(acik?"on":"off")+'">'+(k.islem||"")+'</span></span>'
+          + '<span class="time">'+(k.tarihSaat||"")+'</span></div>';
+      }).join("");
+      degGuncelle();
+    }
+
+    function baglaIsimAlanlari(){
+      Array.prototype.forEach.call(document.querySelectorAll("input[data-cihaz]"), function(inp){
+        inp.addEventListener("change", function(){
+          var cid = inp.getAttribute("data-cihaz");
+          var val = inp.value.trim();
+          var upd = {}; upd[cid] = val;
+          if(val){ isimRef.update(upd); } else { isimRef.child(cid).remove(); }
+        });
+      });
+    }
+    function renderSohbet(snap){
+      var kayitlar = []; snap.forEach(function(c){ var v=c.val()||{}; v._key=c.key; kayitlar.push(v); });
+      kayitlar.reverse();
+      var el = document.getElementById("sohbet");
+      if(!kayitlar.length){ el.innerHTML='<div class="empty">Henüz mesaj yok.</div>'; return; }
+      el.innerHTML = kayitlar.map(function(k){
+        var metin = k.mesaj || (k.resim ? "📷 Fotoğraf" : "");
+        var resimHtml = k.resim ? '<img class="sohbetImg" src="'+k.resim+'" alt="">' : "";
+        return '<div class="row'+(bugunMu(k.tarihSaat)?' today':'')+'">'
+          + '<span class="dev">'+(k.isim||"İsimsiz")+': '+metin+resimHtml+'</span>'
+          + '<span class="time">'+(k.tarihSaat||"")+'</span>'
+          + '<button class="silBtn" data-key="'+k._key+'">Sil</button>'
+          + '</div>';
+      }).join("");
+      baglaSohbetSilButonlari();
+    }
+
+    function baglaSohbetSilButonlari(){
+      Array.prototype.forEach.call(document.querySelectorAll(".silBtn"), function(b){
+        b.addEventListener("click", function(){
+          if(!confirm("Bu mesaj silinsin mi?")) return;
+          sohbetRef.child(b.getAttribute("data-key")).remove();
+        });
+      });
+    }
+  }catch(e){
+    document.getElementById("girisler").innerHTML = '<div class="empty">Bağlantı hatası: '+e.message+'</div>';
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".tab"), function(b){
+    b.addEventListener("click", function(){
+      Array.prototype.forEach.call(document.querySelectorAll(".tab"), function(x){x.classList.remove("on");});
+      Array.prototype.forEach.call(document.querySelectorAll(".sec"), function(x){x.classList.remove("on");});
+      b.classList.add("on");
+      document.getElementById(b.getAttribute("data-s")).classList.add("on");
+    });
+  });
+</script>
+</body>
+</html>
