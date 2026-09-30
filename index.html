@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kontrol Paneli</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<style>
+  :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  *{box-sizing:inherit}
+  body{margin:0;background:#20161a;color:#f4e6e6;font-family:"Segoe UI",Roboto,Arial,sans-serif;padding:16px 14px 40px}
+  h1{font-size:18px;margin:4px 0 14px}
+  .tabs{display:flex;gap:6px;margin-bottom:12px;position:relative}
+  .tabs::before{content:"";position:absolute;top:0;bottom:0;left:0;width:calc((100% - 18px)/4);border-radius:8px;background:#3b232d;border:1px solid #f08cae;box-sizing:border-box;transform:translateX(calc(var(--i,0) * (100% + 6px)));transition:transform .45s cubic-bezier(.4,0,.2,1);pointer-events:none}
+  .tab{flex:1;padding:9px;border:1px solid #3e2c33;background:#2b1e23;color:#bfa0a4;
+       border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;text-align:center}
+  .tab.on{color:#f4e6e6}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#2b1e23;
+       border:1px solid #3e2c33;border-radius:10px;padding:10px 12px;margin-bottom:6px;font-size:13px}
+  .row.today{border-color:#f08cae}
+  .dev{color:#f08cae;font-weight:600;flex:1;min-width:0}
+  .dev input{background:transparent;border:none;color:#f08cae;font-weight:600;font-size:13px;
+             width:100%;padding:2px 0;border-bottom:1px dashed transparent}
+  .dev input:focus{outline:none;border-bottom-color:#f08cae}
+  .islem{font-size:11px;padding:2px 8px;border-radius:20px;white-space:nowrap}
+  .islem.on{background:#1d2f26;color:#4ec287}
+  .islem.off{background:#3b232d;color:#e59b7f}
+  .time{color:#bfa0a4;font-size:12px;white-space:nowrap}
+  .empty{color:#bfa0a4;text-align:center;padding:30px 10px;font-size:14px}
+  .note{color:#bfa0a4;font-size:12px;margin-top:20px}
+  .sec{display:none}
+  .sec.on{display:block;animation:secGir .5s cubic-bezier(.22,.8,.3,1) both}
+  @keyframes secGir{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  .tab{position:relative;z-index:1;background:transparent!important;border-color:transparent!important;transition:color .35s ease}
+  .silBtn{border:none;background:#3b232d;color:#e59b7f;font-size:11px;font-weight:600;
+          padding:5px 10px;border-radius:20px;cursor:pointer;white-space:nowrap}
+  .sohbetImg{display:block;max-width:140px;max-height:140px;border-radius:8px;margin-top:6px;object-fit:cover}
+  .yanitKutu{border-left:3px solid #f08cae;background:rgba(0,0,0,.15);border-radius:6px;
+             padding:4px 8px;margin-bottom:4px;font-size:12px;color:#bfa0a4}
+  .yanitKutu b{color:#f08cae}
+  .begeniRozeti{font-size:12px;color:#f08cae;font-weight:700;margin-left:4px}
+  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .selAll{display:flex;align-items:center;gap:6px;font-size:12px;color:#bfa0a4;cursor:pointer}
+  .selAll input{width:17px;height:17px;accent-color:#f08cae}
+  .toolbar .spacer{flex:1}
+  .bulkBtn{border:none;background:#3b232d;color:#e59b7f;font-size:12px;font-weight:600;
+           padding:7px 12px;border-radius:20px;cursor:pointer;white-space:nowrap}
+  .bulkBtn:disabled{opacity:.4;cursor:default}
+  .allBtn{border:1px solid #3e2c33;background:transparent;color:#bfa0a4;font-size:12px;font-weight:600;
+          padding:7px 12px;border-radius:20px;cursor:pointer;white-space:nowrap}
+  .row input[type=checkbox]{width:18px;height:18px;flex:none;accent-color:#f08cae;margin-right:2px}
+
+  body:not(.ok) #panel{display:none}
+  body.ok #login{position:absolute;left:0;right:0;opacity:0;visibility:hidden;pointer-events:none}
+  body.ok #panel{animation:panelIn .8s cubic-bezier(.22,.8,.3,1) both}
+  #login{max-width:340px;margin:12vh auto 0;text-align:center;animation:loginIn .8s cubic-bezier(.22,.8,.3,1) both;transition:opacity .5s ease,visibility .5s}
+  #login input{width:100%;padding:12px;margin-bottom:8px;border-radius:10px;border:1px solid #3e2c33;background:#2b1e23;color:#f4e6e6;font-size:15px}
+  #login button,.kBtn{border:none;border-radius:20px;background:#f08cae;color:#20161a;font-weight:700;font-size:13px;padding:9px 14px;cursor:pointer}
+  #login button{width:100%;padding:12px;font-size:15px;border-radius:12px}
+  #lHata{color:#e59b7f;font-size:13px;min-height:18px;margin-bottom:6px}
+  .kBtn.red{background:#3b232d;color:#e59b7f}
+  .kRow{flex-wrap:wrap}.kInfo{flex:1;min-width:160px}.kInfo small{display:block;color:#bfa0a4;font-size:11px;margin-top:2px;word-break:break-word}
+  .kAct{display:flex;gap:6px}
+  #mModal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);display:flex;opacity:0;visibility:hidden;transition:opacity .3s ease,visibility .3s;align-items:center;justify-content:center;padding:16px}
+  #mModal.show{opacity:1;visibility:visible}
+  #mModal .mBox{transform:translateY(18px) scale(.96);transition:transform .4s cubic-bezier(.22,.8,.3,1)}
+  #mModal.show .mBox{transform:none}
+  .mBox{width:100%;max-width:380px;background:#2b1e23;border:1px solid #3e2c33;border-radius:16px;padding:18px;max-height:92vh;overflow:auto}
+  .mBox h2{margin:0 0 10px;font-size:16px}
+  .mBox label{display:block;font-size:12px;color:#bfa0a4;margin:10px 0 4px}
+  .mBox input{width:100%;padding:11px;border-radius:10px;border:1px solid #3e2c33;background:#20161a;color:#f4e6e6;font-size:15px}
+  .mBox .acts{display:flex;gap:8px;margin-top:16px}.mBox .acts .kBtn{flex:1;padding:11px}
+  #mDurum{font-size:13px;color:#e59b7f;margin-top:10px;min-height:16px}
+
+  .pwSar{position:relative}
+  .pwSar input{padding-right:46px!important}
+  .pwGoz{position:absolute;right:0;top:0;bottom:0;height:auto;transform:none;width:46px;border:0;background:none;color:#bfa0a4;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:0 10px 10px 0;transition:color .25s}
+  .pwGoz.on{color:#f08cae}
+  #login .pwGoz{width:46px;padding:0;margin:0;background:none;color:#bfa0a4;border-radius:0 10px 10px 0;box-shadow:none;filter:none;transform:none}
+  #login .pwGoz.on{color:#f08cae}
+  #login .pwGoz:hover,#login .pwGoz:active{filter:none;transform:none}
+  #login .pwSar{margin-bottom:8px}
+  #login .pwSar input{margin-bottom:0}
+
+  @keyframes panelIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes loginIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+  .row{transition:border-color .35s ease,background .35s ease,opacity .3s ease}
+  .row:hover{background:#31232a}
+  .kBtn,.silBtn,.bulkBtn,.allBtn,#login button{transition:transform .15s ease,opacity .25s ease,background .25s ease,filter .25s ease}
+  .kBtn:active,.silBtn:active,.bulkBtn:active,.allBtn:active,#login button:active{transform:scale(.95)}
+  .kBtn:hover,#login button:hover{filter:brightness(1.08)}
+  #login input{transition:border-color .3s ease,box-shadow .3s ease}
+  #login input:focus,.mBox input:focus{outline:none;border-color:#f08cae;box-shadow:0 0 0 3px rgba(240,140,174,.18)}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="login"><h1>🔐 Yönetici Girişi</h1>
+  <input id="lKa" placeholder="Kullanıcı adı" autocapitalize="none" autocomplete="username">
+  <input id="lSf" type="password" placeholder="Şifre" autocomplete="current-password">
+  <div id="lHata"></div><button id="lBtn">Giriş Yap</button></div>
+<div id="panel">
+<h1>📋 Kontrol Paneli</h1>
+<div class="tabs">
+  <button class="tab on" data-s="kullanicilar">Kullanıcılar<span id="kBadge"></span></button>
+  <button class="tab" data-s="girisler">Girişler</button>
+  <button class="tab" data-s="degisiklikler">Değişiklikler</button>
+  <button class="tab" data-s="sohbet">Sohbet</button>
+</div>
+
+<div id="kullanicilar" class="sec on"><div id="kullanicilarListe"><div class="empty">Yükleniyor…</div></div></div>
+<div id="girisler" class="sec">
+  <div class="toolbar">
+    <label class="selAll"><input type="checkbox" id="girSelAll"> Tümünü seç</label>
+    <div class="spacer"></div>
+    <button class="bulkBtn" id="girBulkSil" disabled>Seçilenleri Sil</button>
+    <button class="allBtn" id="girTumSil">Tümünü Sil</button>
+  </div>
+  <div id="girislerListe"><div class="empty">Yükleniyor…</div></div>
+</div>
+<div id="degisiklikler" class="sec">
+  <div class="toolbar">
+    <label class="selAll"><input type="checkbox" id="degSelAll"> Tümünü seç</label>
+    <div class="spacer"></div>
+    <button class="bulkBtn" id="degBulkSil" disabled>Seçilenleri Sil</button>
+    <button class="allBtn" id="degTumSil">Tümünü Sil</button>
+  </div>
+  <div id="degisikliklerListe"><div class="empty">Yükleniyor…</div></div>
+</div>
+<div id="sohbet" class="sec"><div class="empty">Yükleniyor…</div></div>
+
+</div>
+
+<div id="mModal"><div class="mBox"><h2>✏️ Kullanıcıyı Düzenle</h2>
+  <label>Ad</label><input id="mAd"><label>Soyad</label><input id="mSoyad">
+  <label>Kullanıcı adı</label><input id="mKa" autocapitalize="none">
+  <label>Yeni şifre <small>(boş bırakırsan değişmez)</small></label><input id="mSf" autocomplete="off">
+  <div id="mDurum"></div>
+  <div class="acts"><button class="kBtn" id="mKaydet">Kaydet</button><button class="kBtn red" id="mIptal">Vazgeç</button></div></div></div>
+<script>
+  var firebaseConfig = {
+    apiKey: "AIzaSyCF8WUjQmbWT-EuR7fn_jOJ-indB6-kRQ8",
+    databaseURL: "https://feyzanur-9b274-default-rtdb.firebaseio.com",
+    projectId: "feyzanur-9b274"
+  };
+
+  var isimler = {}; // uid -> ad soyad
+  var K = {};
+  var girSecili = {};  // key -> true
+  var degSecili = {};  // key -> true
+
+  function bugunMu(tarihSaat){
+    var d=new Date(); function p(n){return n<10?"0"+n:""+n;}
+    var bugun = p(d.getDate())+"."+p(d.getMonth()+1)+"."+d.getFullYear();
+    return (tarihSaat||"").indexOf(bugun) === 0;
+  }
+  function etiket(cihazId){
+    return isimler[cihazId] || cihazId;
+  }
+  function isimInput(cihazId){
+    return etiket(cihazId);
+  }
+
+  /* ---- toplu seçim / silme (ortak yardımcılar) ---- */
+  function kurBulkAraclari(prefix, secili, ref, baslikTekil){
+    var yazRef = ref.ref || ref; // limitToLast() bir Query döndürür; silme için asıl Reference gerekir
+    var selAll = document.getElementById(prefix+"SelAll");
+    var bulkBtn = document.getElementById(prefix+"BulkSil");
+    var tumBtn = document.getElementById(prefix+"TumSil");
+    var container = document.getElementById(prefix==="gir" ? "girislerListe" : "degisikliklerListe");
+
+    function guncelle(){
+      var n = Object.keys(secili).length;
+      bulkBtn.disabled = n===0;
+      bulkBtn.textContent = n>0 ? ("Seçilenleri Sil ("+n+")") : "Seçilenleri Sil";
+      var kutular = container.querySelectorAll('input[type="checkbox"][data-key]');
+      var tumu = kutular.length>0 && Array.prototype.every.call(kutular, function(k){ return !!secili[k.getAttribute("data-key")]; });
+      selAll.checked = tumu;
+    }
+
+    container.addEventListener("change", function(e){
+      var cb = e.target;
+      if(cb.matches('input[type="checkbox"][data-key]')){
+        var key = cb.getAttribute("data-key");
+        if(cb.checked){ secili[key] = true; } else { delete secili[key]; }
+        guncelle();
+      }
+    });
+
+    selAll.addEventListener("change", function(){
+      var kutular = container.querySelectorAll('input[type="checkbox"][data-key]');
+      Array.prototype.forEach.call(kutular, function(k){
+        var key = k.getAttribute("data-key");
+        if(selAll.checked){ secili[key]=true; k.checked=true; } else { delete secili[key]; k.checked=false; }
+      });
+      guncelle();
+    });
+
+    function bosalt(){ Object.keys(secili).forEach(function(k){ delete secili[k]; }); }
+
+    bulkBtn.addEventListener("click", function(){
+      var keys = Object.keys(secili);
+      if(!keys.length) return;
+      if(!confirm(keys.length+" "+baslikTekil+" kaydı silinsin mi?")) return;
+      keys.forEach(function(k){ yazRef.child(k).remove(); });
+      bosalt(); guncelle();
+    });
+
+    tumBtn.addEventListener("click", function(){
+      if(!confirm("TÜM "+baslikTekil+" kayıtları silinsin mi? Bu işlem geri alınamaz.")) return;
+      yazRef.remove();
+      bosalt(); guncelle();
+    });
+
+    return guncelle;
+  }
+
+  firebase.initializeApp(firebaseConfig);
+  var ADMIN="yonetici@feyzanur.app", DOM="@feyzanur.app", basladi=false;
+  function baslat(){ if(basladi) return; basladi=true;
+  try{
+    var isimRef = firebase.database().ref("kullanicilar");
+    var girisRef = firebase.database().ref("alisveris_listesi/loglar").limitToLast(200);
+    var degisimRef = firebase.database().ref("alisveris_listesi/degisiklikler").limitToLast(300);
+    var sohbetRef = firebase.database().ref("alisveris_listesi/sohbet").limitToLast(300);
+
+    var girGuncelle = kurBulkAraclari("gir", girSecili, girisRef, "giriş");
+    var degGuncelle = kurBulkAraclari("deg", degSecili, degisimRef, "değişiklik");
+
+    function hataGoster(id){ return function(er){
+      document.getElementById(id).innerHTML = '<div class="empty">⚠️ Veriler okunamadı: '+(er && er.message ? er.message : er)+'<br><br>Firebase → Realtime Database → Rules kısmına firebase-kurallar.json içeriğini yapıştırıp Publish yaptığınızdan ve yonetici@feyzanur.app hesabıyla girdiğinizden emin olun.</div>'; }; }
+    isimRef.on("value", function(snap){
+      try{
+        K = snap.val() || {}; isimler = {};
+        Object.keys(K).forEach(function(u){ isimler[u] = (K[u] && K[u].adSoyad) || u; });
+        renderKullanicilar();
+      }catch(e){ document.getElementById("kullanicilarListe").innerHTML = '<div class="empty">Hata: '+e.message+'</div>'; }
+      girisRef.once("value", renderGirisler);
+      degisimRef.once("value", renderDegisiklikler);
+    }, hataGoster("kullanicilarListe"));
+    girisRef.on("value", renderGirisler, hataGoster("girislerListe"));
+    degisimRef.on("value", renderDegisiklikler, hataGoster("degisikliklerListe"));
+    sohbetRef.on("value", renderSohbet, hataGoster("sohbet"));
+
+    function renderGirisler(snap){
+      var kayitlar = []; snap.forEach(function(c){ var v=c.val()||{}; v._key=c.key; kayitlar.push(v); });
+      kayitlar.reverse();
+      var el = document.getElementById("girislerListe");
+      if(!kayitlar.length){ el.innerHTML='<div class="empty">Henüz giriş kaydı yok.</div>'; girGuncelle(); return; }
+      el.innerHTML = kayitlar.map(function(k){
+        var checked = girSecili[k._key] ? " checked" : "";
+        return '<div class="row'+(bugunMu(k.tarihSaat)?' today':'')+'">'
+          + '<input type="checkbox" data-key="'+k._key+'"'+checked+'>'
+          + '<span class="dev">📱 '+isimInput(k.cihaz||"bilinmeyen")+'</span>'
+          + '<span class="time">'+(k.tarihSaat||"")+'</span></div>';
+      }).join("");
+      baglaIsimAlanlari();
+      girGuncelle();
+    }
+
+    function renderDegisiklikler(snap){
+      var kayitlar = []; snap.forEach(function(c){ var v=c.val()||{}; v._key=c.key; kayitlar.push(v); });
+      kayitlar.reverse();
+      var el = document.getElementById("degisikliklerListe");
+      if(!kayitlar.length){ el.innerHTML='<div class="empty">Henüz değişiklik yok.</div>'; degGuncelle(); return; }
+      el.innerHTML = kayitlar.map(function(k){
+        var acik = k.islem === "işaretledi";
+        var checked = degSecili[k._key] ? " checked" : "";
+        return '<div class="row'+(bugunMu(k.tarihSaat)?' today':'')+'">'
+          + '<input type="checkbox" data-key="'+k._key+'"'+checked+'>'
+          + '<span class="dev">'+etiket(k.cihaz||"?")+' — '+(k.urun||"")
+          + ' <span class="islem '+(acik?"on":"off")+'">'+(k.islem||"")+'</span></span>'
+          + '<span class="time">'+(k.tarihSaat||"")+'</span></div>';
+      }).join("");
+      degGuncelle();
+    }
+
+    function baglaIsimAlanlari(){
+      Array.prototype.forEach.call(document.querySelectorAll("input[data-cihaz]"), function(inp){
+        inp.addEventListener("change", function(){
+          var cid = inp.getAttribute("data-cihaz");
+          var val = inp.value.trim();
+          var upd = {}; upd[cid] = val;
+          if(val){ isimRef.update(upd); } else { isimRef.child(cid).remove(); }
+        });
+      });
+    }
+    function renderKullanicilar(){
+      var a = Object.keys(K).map(function(u){ var v=K[u]; v._u=u; return v; });
+      var sira = {beklemede:0, onayli:1, reddedildi:2};
+      a.sort(function(x,y){ return ((sira[x.durum]||0)-(sira[y.durum]||0)) || ((y.zaman||0)-(x.zaman||0)); });
+      var b = a.filter(function(v){ return v.durum==="beklemede"; }).length;
+      document.getElementById("kBadge").textContent = b ? " ("+b+")" : "";
+      var el = document.getElementById("kullanicilarListe");
+      if(!a.length){ el.innerHTML='<div class="empty">Henüz kayıtlı kullanıcı yok.</div>'; return; }
+      var ad = {beklemede:"⏳ Onay bekliyor", onayli:"Onaylı", reddedildi:"Erişim kapalı"};
+      el.innerHTML = a.map(function(v){
+        var btn = v.durum==="onayli"
+          ? '<button class="kBtn red" data-u="'+v._u+'" data-d="reddedildi">Erişimi Kapat</button>'
+          : '<button class="kBtn" data-u="'+v._u+'" data-d="onayli">Onayla</button>'
+            + (v.durum==="beklemede" ? '<button class="kBtn red" data-u="'+v._u+'" data-d="reddedildi">Reddet</button>' : '');
+        if(v.kullaniciAdi==="yonetici") btn = "";
+        else btn += '<button class="kBtn" data-u="'+v._u+'" data-a="duzenle">✏️ Düzenle</button><button class="kBtn red" data-u="'+v._u+'" data-a="sil">🗑 Sil</button>';
+        return '<div class="row kRow'+(v.durum==="beklemede"?' today':'')+'"><div class="kInfo"><span class="dev">'+kacir(v.adSoyad)+'</span> <span class="islem '+(v.durum==="onayli"?"on":"off")+'">'+ad[v.durum]+'</span>'
+          + '<small>@'+kacir(v.kullaniciAdi)+(v.telefon?' · '+kacir(v.telefon):'')+' · '+new Date(v.zaman||0).toLocaleString("tr-TR")+'</small>'
+          + '<small>🔑 Şifre: <b style="color:#f4e6e6;user-select:all">'+(v.sifre?kacir(v.sifre):'— (kayıtlı değil)')+'</b></small>'
+          + (v.yoneticiNotu?'<small>💬 '+kacir(v.yoneticiNotu)+'</small>':'')+'</div><div class="kAct">'+btn+'</div></div>';
+      }).join("");
+    }
+    document.getElementById("kullanicilarListe").addEventListener("click", function(e){
+      var b = e.target.closest("button[data-u]"); if(!b) return;
+      if(b.getAttribute("data-a")==="duzenle"){ duzenleAc(b.getAttribute("data-u")); return; }
+      if(b.getAttribute("data-a")==="sil"){ kullaniciSil(b.getAttribute("data-u")); return; }
+      firebase.database().ref("kullanicilar/"+b.getAttribute("data-u")+"/durum").set(b.getAttribute("data-d"));
+    });
+    /* ---- düzenle / sil ---- */
+    var TRK={"ç":"c","ğ":"g","ı":"i","ö":"o","ş":"s","ü":"u"};
+    function kadi(s){ return s.trim().toLocaleLowerCase("tr").replace(/[çğıöşü]/g,function(c){return TRK[c];}); }
+    function anah(x){ return x.replace(/\./g,","); }
+    var secApp = null;
+    function ikinciGiris(v){
+      if(!secApp){ secApp = firebase.initializeApp(firebaseConfig,"ikinci"); secApp.auth().setPersistence(firebase.auth.Auth.Persistence.NONE).catch(function(){}); }
+      var a = secApp.auth();
+      return a.signOut().catch(function(){}).then(function(){ return a.signInWithEmailAndPassword((v.giris||v.kullaniciAdi)+DOM, v.sifre); });
+    }
+    function ikinciKapat(){ if(secApp) secApp.auth().signOut().catch(function(){}); }
+    function hm(er){ var c=(er&&er.code)||""; if(/invalid-credential|wrong-password|user-not-found/.test(c)) return "Kayıtlı şifre ile giriş yapılamadı (şifre değişmiş olabilir)."; if(/permission/i.test((er&&er.message)||"")) return "İzin reddedildi: güncel firebase-kurallar.json Rules'a yayınlanmış mı?"; return (er&&er.message)||c||"Bilinmeyen hata"; }
+    function izleriSil(uid){
+      return Promise.all(["sohbet","loglar","degisiklikler"].map(function(p){
+        var r = firebase.database().ref("alisveris_listesi/"+p);
+        return r.orderByChild("cihaz").equalTo(uid).once("value").then(function(s){
+          var up = {}; s.forEach(function(c){ up[c.key] = null; });
+          return Object.keys(up).length ? r.update(up) : null;
+        });
+      }));
+    }
+    function kullaniciSil(uid){
+      var v = K[uid]; if(!v) return;
+      if(!confirm(v.adSoyad+" (@"+v.kullaniciAdi+") tamamen silinsin mi? Bu işlem geri alınamaz.")) return;
+      var izler = confirm("Bu kişinin sohbet mesajları, giriş ve değişiklik kayıtları da silinsin mi?\n\nTamam = hepsini sil\nİptal = kayıtlar kalsın");
+      var IPTAL = "İptal edildi";
+      Promise.resolve().then(function(){
+        var giris;
+        if(v.sifre){
+          giris = ikinciGiris(v).catch(function(er){
+            if(!confirm("Giriş hesabına ulaşılamadı: "+hm(er)+"\n\nYalnızca kaydı silmek ister misiniz? (Kullanıcı adı Firebase'de dolu kalır; Console > Authentication'dan silebilirsiniz.)")) throw new Error(IPTAL);
+            return null;
+          });
+        } else {
+          giris = confirm("Bu kullanıcının şifresi kayıtlı olmadığı için giriş hesabı silinemez.\nYalnızca kaydı silinsin mi? (Hesabı Firebase Console > Authentication'dan elle silin.)") ? Promise.resolve(null) : Promise.reject(new Error(IPTAL));
+        }
+        return giris.then(function(c){
+          var up = {}; up["kullanicilar/"+uid] = null; up["kullaniciAdlari/"+anah(v.kullaniciAdi)] = null;
+          if(v.giris) up["kullaniciAdlari/"+anah(v.giris)] = null;
+          return firebase.database().ref().update(up).then(function(){
+            return c ? c.user.delete().then(function(){ return true; }, function(er){ alert("Kayıt silindi ama giriş hesabı silinemedi: "+hm(er)+"\nHesabı Console > Authentication'dan silin."); return false; }) : false;
+          });
+        });
+      }).then(function(hesapSilindi){
+        return (izler ? izleriSil(uid) : null);
+      }).then(function(){ alert("Kullanıcı silindi."); })
+      .catch(function(er){ if(!er || er.message !== IPTAL) alert("Silinemedi: "+hm(er)); })
+      .then(ikinciKapat);
+    }
+    var duzUid = null;
+    function duzenleAc(uid){
+      var v = K[uid]; if(!v) return; duzUid = uid;
+      var p = (v.adSoyad||"").split(" ");
+      document.getElementById("mAd").value = v.ad || p.slice(0,-1).join(" ") || p[0] || "";
+      document.getElementById("mSoyad").value = v.soyad || (p.length>1 ? p[p.length-1] : "");
+      document.getElementById("mKa").value = v.kullaniciAdi || "";
+      document.getElementById("mSf").value = ""; document.getElementById("mSf").placeholder = v.sifre ? "Mevcut: "+v.sifre : "Eski şifre kayıtlı değil, değiştirilemez";
+      document.getElementById("mSf").disabled = !v.sifre;
+      document.getElementById("mDurum").textContent = "";
+      document.getElementById("mModal").classList.add("show");
+    }
+    document.getElementById("mIptal").addEventListener("click", function(){ document.getElementById("mModal").classList.remove("show"); });
+    document.getElementById("mKaydet").addEventListener("click", function(){
+      var v = K[duzUid]; if(!v) return;
+      var D = document.getElementById("mDurum"); D.textContent = "";
+      var ad = document.getElementById("mAd").value.trim(), so = document.getElementById("mSoyad").value.trim();
+      var ka = kadi(document.getElementById("mKa").value), sf = document.getElementById("mSf").value;
+      if(!ad || !so){ D.textContent = "Ad ve soyad boş olamaz."; return; }
+      if(!/^[a-z0-9._]{3,20}$/.test(ka)){ D.textContent = "Kullanıcı adı 3-20 karakter: harf, rakam, nokta, alt çizgi."; return; }
+      if(sf && sf.length < 6){ D.textContent = "Şifre en az 6 karakter olmalı."; return; }
+      var uid = duzUid, degisti = ka !== v.kullaniciAdi;
+      if(degisti && Object.keys(K).some(function(u){ return u!==uid && K[u].kullaniciAdi===ka; })){ D.textContent = "Bu kullanıcı adı başka birinde var."; return; }
+      D.textContent = "Kaydediliyor…";
+      var kontrol = degisti ? firebase.database().ref("kullaniciAdlari/"+anah(ka)).once("value").then(function(s){ var m=s.val(); if(m && m.uid!==uid) throw new Error("Bu kullanıcı adı alınmış."); }) : Promise.resolve();
+      kontrol.then(function(){ return sf ? ikinciGiris(v).then(function(c){ return c.user.updatePassword(sf); }) : null; })
+      .then(function(){
+        var b = "kullanicilar/"+uid, up = {};
+        up[b+"/ad"] = ad; up[b+"/soyad"] = so; up[b+"/adSoyad"] = ad+" "+so;
+        if(sf) up[b+"/sifre"] = sf;
+        if(degisti){
+          var g = v.giris || v.kullaniciAdi;
+          up[b+"/kullaniciAdi"] = ka; up[b+"/giris"] = g;
+          up["kullaniciAdlari/"+anah(ka)] = {giris:g, uid:uid};
+          up["kullaniciAdlari/"+anah(v.kullaniciAdi)] = null;
+        }
+        return firebase.database().ref().update(up);
+      })
+      .then(function(){ document.getElementById("mModal").classList.remove("show"); })
+      .catch(function(er){ D.textContent = "Hata: "+hm(er); })
+      .then(ikinciKapat);
+    });
+    function kacir(s){ var d=document.createElement("div"); d.textContent=s||""; return d.innerHTML; }
+
+    function renderSohbet(snap){
+      var kayitlar = []; snap.forEach(function(c){ var v=c.val()||{}; v._key=c.key; kayitlar.push(v); });
+      kayitlar.reverse();
+      var el = document.getElementById("sohbet");
+      if(!kayitlar.length){ el.innerHTML='<div class="empty">Henüz mesaj yok.</div>'; return; }
+      el.innerHTML = kayitlar.map(function(k){
+        var metin = k.silindi ? "🚫 (kullanıcı tarafından silindi)" : (k.mesaj ? kacir(k.mesaj) : (k.resim ? "📷 Fotoğraf" : ""));
+        var resimHtml = k.resim ? '<img class="sohbetImg" src="'+k.resim+'" alt="">' : "";
+        var yanitHtml = k.yanit ? '<div class="yanitKutu">↩ <b>'+kacir(k.yanit.isim)+'</b>: '+kacir(k.yanit.mesaj)+'</div>' : "";
+        var begeniSayisi = k.begeniler ? Object.keys(k.begeniler).length : 0;
+        var begeniHtml = begeniSayisi ? '<span class="begeniRozeti">❤️ '+begeniSayisi+'</span>' : "";
+        return '<div class="row'+(bugunMu(k.tarihSaat)?' today':'')+'">'
+          + '<span class="dev">'+yanitHtml+kacir(k.isim||"İsimsiz")+': '+metin+' '+begeniHtml+resimHtml+'</span>'
+          + '<span class="time">'+(k.tarihSaat||"")+'</span>'
+          + '<button class="silBtn" data-key="'+k._key+'">Sil</button>'
+          + '</div>';
+      }).join("");
+      baglaSohbetSilButonlari();
+    }
+
+    function baglaSohbetSilButonlari(){
+      Array.prototype.forEach.call(document.querySelectorAll(".silBtn"), function(b){
+        b.addEventListener("click", function(){
+          if(!confirm("Bu mesaj silinsin mi?")) return;
+          firebase.database().ref("alisveris_listesi/sohbet/"+b.getAttribute("data-key")).remove();
+        });
+      });
+    }
+  }catch(e){
+    document.getElementById("girisler").innerHTML = '<div class="empty">Bağlantı hatası: '+e.message+'</div>';
+  }
+  }
+
+
+  var EYE='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>',EYEOFF='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10.9 10.9 0 0 1 12 19C5 19 1 12 1 12a18.5 18.5 0 0 1 5.1-5.9M9.9 5.1A10.9 10.9 0 0 1 12 5c7 0 11 7 11 7a18.5 18.5 0 0 1-2.2 3.2M14.1 14.1a3 3 0 1 1-4.2-4.2"/><path d="M1 1l22 22"/></svg>';
+  Array.prototype.forEach.call(document.querySelectorAll('#login input[type=password]'),function(inp){
+    var w=document.createElement('div');w.className='pwSar';inp.parentNode.insertBefore(w,inp);w.appendChild(inp);
+    var b=document.createElement('button');b.type='button';b.className='pwGoz';b.setAttribute('aria-label','Şifreyi göster');b.innerHTML=EYE;
+    b.addEventListener('click',function(){var g=inp.type==='password';inp.type=g?'text':'password';b.innerHTML=g?EYEOFF:EYE;b.classList.toggle('on',g);});
+    w.appendChild(b);
+    if(inp.form)inp.form.addEventListener('submit',function(){inp.type='password';b.innerHTML=EYE;b.classList.remove('on');},true);
+  });
+  var auth = firebase.auth();
+  document.getElementById("lBtn").addEventListener("click", function(){
+    var u = document.getElementById("lKa").value.trim().toLowerCase(), p = document.getElementById("lSf").value;
+    document.getElementById("lHata").textContent = "";
+    auth.signInWithEmailAndPassword(u+DOM, p).catch(function(){ document.getElementById("lHata").textContent = "Kullanıcı adı veya şifre hatalı."; });
+  });
+  auth.onAuthStateChanged(function(u){
+    if(u && u.email===ADMIN){ document.body.classList.add("ok"); setTimeout(function(){ document.getElementById("login").style.display="none"; },700); baslat(); }
+    else if(u){ document.getElementById("lHata").textContent = "Bu panel yalnızca yöneticiler içindir."; auth.signOut(); }
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".tab"), function(b){
+    b.addEventListener("click", function(){
+      Array.prototype.forEach.call(document.querySelectorAll(".tab"), function(x){x.classList.remove("on");});
+      Array.prototype.forEach.call(document.querySelectorAll(".sec"), function(x){x.classList.remove("on");});
+      b.classList.add("on");
+      b.parentNode.style.setProperty("--i", Array.prototype.indexOf.call(b.parentNode.children, b));
+      document.getElementById(b.getAttribute("data-s")).classList.add("on");
+    });
+  });
+</script>
+</body>
+</html>
